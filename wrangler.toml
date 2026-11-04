@@ -1,0 +1,14 @@
+name = "lightline"
+pages_build_output_dir = "public"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Replace database_id with the id printed by:  npx wrangler d1 create lightline
+[[d1_databases]]
+binding = "DB"
+database_name = "lightline"
+database_id = "9a260577-83d7-4cc9-a3ec-54c785036f1d"
+
+[[kv_namespaces]]
+binding = "IMAGES"
+id = "a3005a0bccd54a74a63b1e3b17bf1ee3"
