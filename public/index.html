@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lightline Compare</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Before / after image comparison with a drag-to-reveal slider and a private archive.">
+<meta name="theme-color" content="#2E4BC6">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Layout: fixed top bar, one centred work column. Compare stage is the hero; archive is folder rail + card grid. */
+:root{
+  --bg:#F1F3F7; --surface:#FFFFFF; --surface-2:#E8EBF2; --line:#D7DBE5;
+  --fg:#14171F; --fg-dim:#5B6275; --accent:#2E4BC6; --accent-fg:#FFFFFF;
+  --before:#A2601A; --after:#1F6782; --danger:#B3261E; --ok:#1E7A52;
+  --shadow:0 1px 2px rgba(20,23,31,.06), 0 10px 28px rgba(20,23,31,.09);
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:12px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1117; --surface:#171A22; --surface-2:#1E222C; --line:#2B303C;
+    --fg:#ECEEF4; --fg-dim:#98A0B2; --accent:#8098FF; --accent-fg:#0F1117;
+    --before:#D9A04E; --after:#6FC3DF; --danger:#F2846B; --ok:#5FCF9B;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.45);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1117; --surface:#171A22; --surface-2:#1E222C; --line:#2B303C;
+  --fg:#ECEEF4; --fg-dim:#98A0B2; --accent:#8098FF; --accent-fg:#0F1117;
+  --before:#D9A04E; --after:#6FC3DF; --danger:#F2846B; --ok:#5FCF9B;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.45);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;text-wrap:balance;letter-spacing:-.01em}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--mono);font-size:.78rem;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--fg-dim)}
+.wrap{width:100%;max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:9px 14px;font-size:.92rem;font-weight:600;display:inline-flex;align-items:center;gap:7px;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.quiet{background:transparent;border-color:transparent;color:var(--fg-dim)}
+.btn.quiet:hover{background:var(--surface-2);color:var(--fg)}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:.82rem;font-weight:600;color:var(--fg-dim)}
+.input{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 12px;width:100%;min-width:0}
+.input[aria-invalid="true"]{border-color:var(--danger)}
+.hint{font-size:.78rem;color:var(--danger);min-height:1.1em}
+
+#authView{min-height:72vh;display:grid;place-items:center;padding-block:40px}
+.auth-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:26px 22px;display:flex;flex-direction:column;gap:16px}
+.mark{display:flex;align-items:center;gap:10px}
+.mark-glyph{width:30px;height:30px;border-radius:7px;background:var(--accent);position:relative;overflow:hidden;flex:none}
+.mark-glyph::after{content:"";position:absolute;inset:0 50% 0 0;background:var(--surface);opacity:.85}
+.mark-name{font-family:var(--display);font-weight:700;font-size:1.05rem;letter-spacing:-.015em}
+.tabs{display:flex;gap:4px;background:var(--surface-2);padding:4px;border-radius:9px}
+.tabs button{flex:1;border:0;background:transparent;border-radius:6px;padding:8px;font-size:.88rem;font-weight:600;color:var(--fg-dim)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.note{font-size:.82rem;color:var(--fg-dim)}
+.msg{font-size:.85rem;border-radius:8px;padding:8px 10px;background:var(--surface-2)}
+.msg.err{color:var(--danger)}
+
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--surface);z-index:30}
+#topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.topbar-in{display:flex;align-items:center;gap:12px;padding-block:10px;flex-wrap:wrap}
+.nav{display:flex;gap:2px;margin-left:auto}
+.nav button{border:0;background:transparent;padding:8px 12px;border-radius:8px;font-weight:600;font-size:.9rem;color:var(--fg-dim)}
+.nav button[aria-current="page"]{background:var(--surface-2);color:var(--fg)}
+.who{font-size:.84rem;color:var(--fg-dim);max-width:16ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+main{padding-block:22px 48px}
+.sec-head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.sec-head h2{font-size:1.3rem}
+.banner{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 12px;font-size:.86rem;margin-bottom:12px;display:flex;gap:8px;align-items:center}
+.banner.err{color:var(--danger)}
+
+.sources{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:620px){.sources{grid-template-columns:1fr}}
+.drop{border:1px dashed var(--line);background:var(--surface);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.drop.over{border-color:var(--accent);background:var(--surface-2)}
+.drop-top{display:flex;align-items:center;gap:8px}
+.chip{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:5px;border:1px solid currentColor}
+.chip.b{color:var(--before)}
+.chip.a{color:var(--after)}
+.thumb{aspect-ratio:3/2;max-width:100%;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb span{color:var(--fg-dim);font-size:.85rem}
+.meta{color:var(--fg-dim);display:flex;justify-content:space-between;gap:8px;min-width:0}
+.meta span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.stage-wrap{margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.stage{position:relative;width:100%;max-width:100%;background:var(--surface-2);touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden;cursor:ew-resize}
+/* Both layers share one rectangle and one fit rule, so a pair with different
+   pixel sizes or aspect ratios still lines up under the reveal line. */
+.stage img{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;object-position:center}
+.stage.fit-cover img{object-fit:cover}
+.stage.fit-contain img{object-fit:contain}
+.fitbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:8px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:6px;padding:5px 10px;font-size:.82rem;font-weight:600;color:var(--fg-dim)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.mismatch{font-size:.8rem;color:var(--fg-dim);display:flex;align-items:center;gap:6px}
+.mismatch b{color:var(--fg);font-weight:600}
+.stage .layer-before{clip-path:inset(0 calc(100% - var(--pos,0%)) 0 0)}
+.stage .tag{position:absolute;top:10px;font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:5px;pointer-events:none}
+.stage .tag-b{left:10px}
+.stage .tag-a{right:10px}
+.handle{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35);left:var(--pos,0%);transform:translateX(-1px);touch-action:none}
+.knob{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35);display:grid;place-items:center;color:#14171F;font-size:.8rem;cursor:grab}
+.knob:active{cursor:grabbing}
+.stage-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;border-top:1px solid var(--line);background:var(--surface)}
+.stage-bar .mono{color:var(--fg-dim)}
+.saveline{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-left:auto}
+.saveline .field{min-width:150px}
+
+.archive{display:grid;grid-template-columns:220px 1fr;gap:18px;align-items:start}
+@media (max-width:720px){.archive{grid-template-columns:1fr}}
+.rail{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:6px}
+.rail .folder{display:flex;align-items:center;gap:8px;border:0;background:transparent;width:100%;text-align:left;padding:8px 9px;border-radius:8px;font-size:.92rem;color:var(--fg);min-width:0}
+.rail .folder[aria-current="true"]{background:var(--surface-2);font-weight:600}
+.rail .folder .fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail .folder .count{margin-left:auto;font-family:var(--mono);font-size:.72rem;color:var(--fg-dim)}
+.rail .folder .x{opacity:0;border:0;background:transparent;color:var(--fg-dim);padding:0 2px;font-size:.9rem}
+.rail .folder:hover .x,.rail .folder:focus-within .x{opacity:1}
+.newfolder{display:flex;gap:6px;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.card .shot{aspect-ratio:3/2;background:var(--surface-2);border:0;padding:0;display:block;width:100%}
+.card .shot img{width:100%;height:100%;object-fit:cover;display:block}
+.card .body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.card .title{font-weight:600;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .row{display:flex;align-items:center;gap:6px;margin-top:4px}
+.empty{border:1px dashed var(--line);border-radius:var(--r);padding:28px;text-align:center;color:var(--fg-dim)}
+
+.backdrop{position:fixed;inset:0;background:rgba(10,12,16,.6);z-index:40;display:grid;place-items:center;padding:max(16px,env(safe-area-inset-left,0px))}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);width:min(900px,100%);max-height:88vh;overflow:auto}
+.modal-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);flex-wrap:wrap}
+.confirm{width:min(380px,100%);padding:18px;display:flex;flex-direction:column;gap:12px}
+.confirm .actions{display:flex;gap:8px;justify-content:flex-end}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:sp .7s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ======================= AUTH ======================= -->
+<section id="authView" class="wrap" hidden>
+  <div class="auth-card">
+    <div class="mark"><div class="mark-glyph"></div><div><div class="mark-name">Lightline</div><div class="eyebrow">before / after compare</div></div></div>
+    <div class="tabs" role="tablist">
+      <button id="tabLogin" role="tab" aria-selected="true" type="button">Sign in</button>
+      <button id="tabRegister" role="tab" aria-selected="false" type="button">Create account</button>
+    </div>
+    <form id="authForm" novalidate style="display:flex;flex-direction:column;gap:12px">
+      <div class="field" id="nameField" hidden>
+        <label for="auName">Display name</label>
+        <input class="input" id="auName" type="text" autocomplete="name" placeholder="Thanh">
+      </div>
+      <div class="field">
+        <label for="auEmail">Email</label>
+        <input class="input" id="auEmail" type="email" inputmode="email" autocomplete="username" required placeholder="you@example.com" spellcheck="false">
+        <div class="hint" id="emailHint"></div>
+      </div>
+      <div class="field">
+        <label for="auPass">Password</label>
+        <input class="input" id="auPass" type="password" autocomplete="current-password" required placeholder="At least 8 characters">
+        <div class="hint" id="passHint"></div>
+      </div>
+      <div class="msg" id="authMsg" hidden></div>
+      <button class="btn primary" id="authSubmit" type="submit" style="justify-content:center">Sign in</button>
+    </form>
+    <p class="note">Each account sees only its own archive. Images are stored privately and are served only to the account that uploaded them.</p>
+  </div>
+</section>
+
+<!-- ======================= APP ======================= -->
+<div id="appView" hidden>
+  <header id="topbar">
+    <div class="wrap topbar-in">
+      <div class="mark"><div class="mark-glyph"></div><span class="mark-name">Lightline</span></div>
+      <nav class="nav">
+        <button id="navCompare" aria-current="page" type="button">Compare</button>
+        <button id="navArchive" type="button">Archive</button>
+      </nav>
+      <span class="who" id="whoami"></span>
+      <button class="btn quiet" id="themeBtn" title="Switch theme" aria-label="Switch theme" type="button" style="padding:9px 10px">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="8" cy="8" r="6"></circle>
+          <path d="M8 2a6 6 0 0 0 0 12z" fill="currentColor" stroke="none"></path>
+        </svg>
+      </button>
+      <button class="btn quiet" id="logoutBtn" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="compareView" class="wrap">
+      <div class="sec-head">
+        <h2>Compare a pair</h2>
+        <p class="note" style="margin:0">Drag the line from the left edge to reveal the before image. Arrow keys nudge it by 1%, Shift by 10%.</p>
+      </div>
+      <div class="banner err" id="compareErr" hidden></div>
+
+      <div class="sources">
+        <div class="drop" id="dropBefore">
+          <div class="drop-top"><span class="chip b">Image 1 · before</span><button class="btn quiet mono" id="clearBefore" type="button" style="margin-left:auto" hidden>clear</button></div>
+          <label class="thumb" for="fileBefore" id="thumbBefore" style="cursor:pointer"><span>Click or drop an image</span></label>
+          <input id="fileBefore" type="file" accept="image/*" hidden>
+          <div class="meta mono" id="metaBefore"><span>no file</span><span></span></div>
+        </div>
+        <div class="drop" id="dropAfter">
+          <div class="drop-top"><span class="chip a">Image 2 · after</span><button class="btn quiet mono" id="clearAfter" type="button" style="margin-left:auto" hidden>clear</button></div>
+          <label class="thumb" for="fileAfter" id="thumbAfter" style="cursor:pointer"><span>Click or drop an image</span></label>
+          <input id="fileAfter" type="file" accept="image/*" hidden>
+          <div class="meta mono" id="metaAfter"><span>no file</span><span></span></div>
+        </div>
+      </div>
+
+      <div class="stage-wrap" id="stageWrap" hidden>
+        <div class="stage" id="stage" style="--pos:0%">
+          <img id="imgAfter" alt="After image">
+          <img id="imgBefore" class="layer-before" alt="Before image, revealed by the slider">
+          <span class="tag tag-b">before</span>
+          <span class="tag tag-a">after</span>
+          <div class="handle" id="handle" role="slider" tabindex="0" aria-label="Reveal position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="knob">◀▶</div>
+          </div>
+        </div>
+        <div class="stage-bar" style="flex-direction:column;align-items:stretch;gap:12px">
+          <div class="fitbar">
+            <span class="mono" id="posReadout">reveal 0% · 0 × 0 px</span>
+            <div class="mismatch" id="fitNotice" hidden>
+              <span id="fitNoticeText"></span>
+              <span class="seg">
+                <button id="fitCover" type="button" aria-pressed="true">Match edges</button>
+                <button id="fitContain" type="button" aria-pressed="false">Show all</button>
+              </span>
+            </div>
+          </div>
+          <div class="saveline" style="margin-left:0">
+            <div class="field"><label for="saveTitle">Title</label><input class="input" id="saveTitle" type="text" placeholder="Untitled comparison"></div>
+            <div class="field"><label for="saveFolder">Folder</label><select class="input" id="saveFolder"></select></div>
+            <button class="btn" id="newFolderBtn" type="button">New folder</button>
+            <button class="btn primary" id="saveBtn" type="button">Save to archive</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="archiveView" class="wrap" hidden>
+      <div class="sec-head"><h2>Archive</h2><p class="note" style="margin:0" id="archiveCount"></p></div>
+      <div class="banner err" id="archiveErr" hidden></div>
+      <div class="archive">
+        <aside class="rail">
+          <div class="eyebrow" style="padding:4px 9px">Folders</div>
+          <div id="folderList"></div>
+          <div class="newfolder">
+            <input class="input" id="folderName" type="text" placeholder="New folder" style="font-size:.9rem;padding:7px 9px">
+            <button class="btn" id="addFolder" type="button">Add</button>
+          </div>
+        </aside>
+        <div>
+          <div class="grid" id="itemGrid"></div>
+          <div class="empty" id="archiveEmpty" hidden>Nothing saved in this folder yet. Build a comparison on the Compare tab and save it here.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="overlayRoot"></div>
+
+<script>
+"use strict";
+
+/* ---------------- tiny helpers ---------------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtBytes = n => n < 1024 ? n+' B' : n < 1048576 ? (n/1024).toFixed(0)+' KB' : (n/1048576).toFixed(1)+' MB';
+const fmtDate = t => new Date(t).toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'});
+const THEME_KEY = 'lightline.theme';
+
+/* Same rule the server applies, so the message appears before the round trip. */
+const EMAIL_RE = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/;
+function emailProblem(raw){
+  const v = String(raw || '').trim().toLowerCase();
+  if(!v) return 'Enter your email address.';
+  if(v.length > 254 || v.includes('..')) return 'That email address is not valid.';
+  if((v.split('@')[0] || '').length > 64) return 'That email address is not valid.';
+  if(!EMAIL_RE.test(v)) return 'That email address is not valid.';
+  return '';
+}
+
+async function api(path, opts = {}){
+  const res = await fetch(path, { credentials: 'same-origin', ...opts });
+  let data = null;
+  try { data = await res.json(); } catch {}
+  if(!res.ok){
+    const err = new Error((data && data.error) || `Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+function banner(el, message){
+  if(!message){ el.hidden = true; el.textContent = ''; return; }
+  el.textContent = message; el.hidden = false;
+}
+
+/* ---------------- state ---------------- */
+let me = null, folders = [], items = [], activeFolder = 'all';
+const src = { before:null, after:null };
+const blobUrls = new Set();
+const trackURL = u => { blobUrls.add(u); return u; };
+
+/* ---------------- theme ---------------- */
+(function(){ try{ const t = localStorage.getItem(THEME_KEY); if(t) document.documentElement.setAttribute('data-theme', t); }catch(e){} })();
+$('themeBtn').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const next = dark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+});
+
+/* ---------------- auth ---------------- */
+let authMode = 'login';
+function setAuthMode(m){
+  authMode = m;
+  $('tabLogin').setAttribute('aria-selected', String(m === 'login'));
+  $('tabRegister').setAttribute('aria-selected', String(m === 'register'));
+  $('nameField').hidden = m !== 'register';
+  $('authSubmit').textContent = m === 'login' ? 'Sign in' : 'Create account';
+  $('auPass').setAttribute('autocomplete', m === 'login' ? 'current-password' : 'new-password');
+  $('auPass').placeholder = m === 'login' ? 'Your password' : 'At least 8 characters';
+  $('authMsg').hidden = true;
+  $('emailHint').textContent = ''; $('passHint').textContent = '';
+  $('auEmail').removeAttribute('aria-invalid'); $('auPass').removeAttribute('aria-invalid');
+}
+$('tabLogin').addEventListener('click', () => setAuthMode('login'));
+$('tabRegister').addEventListener('click', () => setAuthMode('register'));
+
+$('auEmail').addEventListener('blur', () => {
+  const p = $('auEmail').value ? emailProblem($('auEmail').value) : '';
+  $('emailHint').textContent = p;
+  $('auEmail').setAttribute('aria-invalid', String(!!p));
+});
+$('auEmail').addEventListener('input', () => {
+  if($('emailHint').textContent){ $('emailHint').textContent=''; $('auEmail').removeAttribute('aria-invalid'); }
+});
+
+function authMsg(text, isErr){
+  const el = $('authMsg');
+  el.textContent = text; el.hidden = !text;
+  el.classList.toggle('err', !!isErr);
+}
+
+$('authForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  authMsg('');
+
+  const emailRaw = $('auEmail').value;
+  const pass = $('auPass').value;
+
+  const ep = emailProblem(emailRaw);
+  $('emailHint').textContent = ep;
+  $('auEmail').setAttribute('aria-invalid', String(!!ep));
+  if(ep){ $('auEmail').focus(); return; }
+
+  let pp = '';
+  if(!pass) pp = 'Enter your password.';
+  else if(authMode === 'register' && pass.length < 8) pp = 'Use a password of at least 8 characters.';
+  $('passHint').textContent = pp;
+  $('auPass').setAttribute('aria-invalid', String(!!pp));
+  if(pp){ $('auPass').focus(); return; }
+
+  const btn = $('authSubmit');
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = authMode === 'login' ? 'Signing in…' : 'Creating…';
+
+  try{
+    const payload = { email: emailRaw.trim().toLowerCase(), password: pass };
+    if(authMode === 'register') payload.name = $('auName').value;
+    const out = await api('/api/auth/' + (authMode === 'login' ? 'login' : 'register'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    $('authForm').reset();
+    me = out.user;
+    await enterApp();
+  }catch(err){
+    authMsg(err.message, true);
+  }finally{
+    btn.disabled = false; btn.textContent = label;
+  }
+});
+
+$('logoutBtn').addEventListener('click', async () => {
+  try{ await api('/api/auth/logout', { method: 'POST' }); }catch(e){}
+  // Drop every trace of the previous account from this tab.
+  blobUrls.forEach(u => { try{ URL.revokeObjectURL(u); }catch(e){} });
+  blobUrls.clear();
+  clearSource('before'); clearSource('after');
+  me = null; folders = []; items = []; activeFolder = 'all';
+  $('itemGrid').innerHTML = ''; $('folderList').innerHTML = '';
+  $('appView').hidden = true; $('authView').hidden = false;
+  setAuthMode('login');
+});
+
+async function enterApp(){
+  $('authView').hidden = true; $('appView').hidden = false;
+  $('whoami').textContent = me.name || me.email;
+  $('whoami').title = me.email;
+  showTab('compare');
+  await refreshFolders();
+}
+
+/* ---------------- tabs ---------------- */
+function showTab(which){
+  const c = which === 'compare';
+  $('compareView').hidden = !c; $('archiveView').hidden = c;
+  $('navCompare').setAttribute('aria-current', c ? 'page' : 'false');
+  $('navArchive').setAttribute('aria-current', c ? 'false' : 'page');
+  if(!c) refreshArchive();
+}
+$('navCompare').addEventListener('click', () => showTab('compare'));
+$('navArchive').addEventListener('click', () => showTab('archive'));
+
+/* ---------------- folders ---------------- */
+async function refreshFolders(){
+  try{
+    const out = await api('/api/folders');
+    folders = out.folders || [];
+    fillFolderSelect();
+  }catch(err){ handleAuthLoss(err); }
+}
+function fillFolderSelect(){
+  const sel = $('saveFolder'), keep = sel.value;
+  sel.innerHTML = folders.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
+  if(keep && folders.some(f => f.id === keep)) sel.value = keep;
+}
+async function createFolder(name){
+  const out = await api('/api/folders', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  folders.push(out.folder);
+  fillFolderSelect();
+  return out.folder;
+}
+$('addFolder').addEventListener('click', async () => {
+  const name = $('folderName').value.trim();
+  if(!name) return;
+  try{
+    await createFolder(name);
+    $('folderName').value = '';
+    banner($('archiveErr'), '');
+    renderArchive();
+  }catch(err){ banner($('archiveErr'), err.message); handleAuthLoss(err); }
+});
+$('folderName').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('addFolder').click(); } });
+
+/* ---------------- source images ---------------- */
+async function setSource(kind, blob, name){
+  const url = trackURL(URL.createObjectURL(blob));
+  const dim = await new Promise(res => {
+    const im = new Image();
+    im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight });
+    im.onerror = () => res({ w:0, h:0 });
+    im.src = url;
+  });
+  if(!dim.w){ URL.revokeObjectURL(url); showAlert('That file could not be read as an image.'); return; }
+  if(src[kind] && src[kind].url) URL.revokeObjectURL(src[kind].url);
+  src[kind] = { blob, url, name: name || 'image', size: blob.size, w: dim.w, h: dim.h, type: blob.type };
+
+  const cap = kind === 'before' ? 'Before' : 'After';
+  $('thumb' + cap).innerHTML = `<img src="${url}" alt="${cap} preview">`;
+  $('meta' + cap).innerHTML = `<span>${esc(src[kind].name)}</span><span>${dim.w}×${dim.h} · ${fmtBytes(blob.size)}</span>`;
+  $('clear' + cap).hidden = false;
+  syncStage();
+}
+function clearSource(kind){
+  if(src[kind] && src[kind].url) URL.revokeObjectURL(src[kind].url);
+  src[kind] = null;
+  const cap = kind === 'before' ? 'Before' : 'After';
+  $('thumb' + cap).innerHTML = '<span>Click or drop an image</span>';
+  $('meta' + cap).innerHTML = '<span>no file</span><span></span>';
+  $('clear' + cap).hidden = true;
+  syncStage();
+}
+['Before','After'].forEach(cap => {
+  const kind = cap.toLowerCase();
+  $('file' + cap).addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if(f) setSource(kind, f, f.name);
+    e.target.value = '';
+  });
+  $('clear' + cap).addEventListener('click', () => clearSource(kind));
+  const zone = $('drop' + cap);
+  ['dragenter','dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('over'); }));
+  zone.addEventListener('drop', e => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f && f.type.startsWith('image/')) setSource(kind, f, f.name);
+  });
+});
+
+/* ---------------- the stage ---------------- */
+let pos = 0;
+function setPos(p){
+  pos = Math.max(0, Math.min(100, p));
+  $('stage').style.setProperty('--pos', pos.toFixed(2) + '%');
+  $('handle').setAttribute('aria-valuenow', Math.round(pos));
+  const a = src.after, b = src.before;
+  let dims = '—';
+  if(a && b) dims = (a.w === b.w && a.h === b.h)
+    ? `${a.w} × ${a.h} px`
+    : `before ${b.w}×${b.h} · after ${a.w}×${a.h}`;
+  else if(a) dims = `${a.w} × ${a.h} px`;
+  else if(b) dims = `${b.w} × ${b.h} px`;
+  $('posReadout').textContent = `reveal ${Math.round(pos)}% · ${dims}`;
+}
+/* ---------------- shared geometry ----------------
+   The two layers must occupy the SAME rectangle, or the reveal line compares
+   two differently-placed pictures. The after image defines the frame; both
+   layers are then fitted into it with one identical rule.
+     - aspect ratios equal  → the fit rule is a no-op, so a 4000px after and a
+                              1200px before render at exactly the same size.
+     - aspect ratios differ → "Match edges" (cover) fills the frame with both,
+                              so edges and horizontal positions align, at the
+                              cost of cropping the odd one out. "Show all"
+                              (contain) keeps every pixel of both instead. */
+const AR_TOLERANCE = 0.005;
+let fitMode = 'cover';
+
+function geometry(bw, bh, aw, ah){
+  const arA = (aw > 0 && ah > 0) ? aw / ah : 1.5;
+  const arB = (bw > 0 && bh > 0) ? bw / bh : arA;
+  const matched = Math.abs(arA - arB) / Math.max(arA, arB) <= AR_TOLERANCE;
+  return { ar: arA, arA, arB, matched };
+}
+function applyGeometry(stageEl, geo, mode){
+  stageEl.style.aspectRatio = geo.ar.toFixed(4);
+  stageEl.classList.toggle('fit-cover', mode !== 'contain');
+  stageEl.classList.toggle('fit-contain', mode === 'contain');
+}
+const describeRatio = ar => {
+  const r = Math.round(ar * 100) / 100;
+  return `${r}:1`;
+};
+
+function syncStage(){
+  const ready = !!(src.before && src.after);
+  $('stageWrap').hidden = !ready;
+  if(!ready) return;
+
+  $('imgBefore').src = src.before.url;
+  $('imgAfter').src = src.after.url;
+
+  const geo = geometry(src.before.w, src.before.h, src.after.w, src.after.h);
+  applyGeometry($('stage'), geo, fitMode);
+
+  const notice = $('fitNotice');
+  if(geo.matched){
+    // Same shape: both layers land on the same rectangle whatever their size.
+    notice.hidden = true;
+  }else{
+    notice.hidden = false;
+    $('fitNoticeText').innerHTML =
+      `Different shapes (<b>${describeRatio(geo.arB)}</b> and <b>${describeRatio(geo.arA)}</b>).`;
+  }
+  setPos(0);
+}
+
+$('fitCover').addEventListener('click', () => setFitMode('cover'));
+$('fitContain').addEventListener('click', () => setFitMode('contain'));
+function setFitMode(mode){
+  fitMode = mode;
+  $('fitCover').setAttribute('aria-pressed', String(mode === 'cover'));
+  $('fitContain').setAttribute('aria-pressed', String(mode === 'contain'));
+  if(src.before && src.after){
+    applyGeometry($('stage'), geometry(src.before.w, src.before.h, src.after.w, src.after.h), mode);
+  }
+}
+function attachSlider(stageEl, handleEl, onMove){
+  let dragging = false;
+  const toPct = clientX => {
+    const r = stageEl.getBoundingClientRect();
+    return r.width ? ((clientX - r.left) / r.width) * 100 : 0;
+  };
+  stageEl.addEventListener('pointerdown', e => {
+    dragging = true;
+    try{ stageEl.setPointerCapture(e.pointerId); }catch(err){}
+    onMove(toPct(e.clientX)); e.preventDefault();
+  });
+  stageEl.addEventListener('pointermove', e => { if(dragging) onMove(toPct(e.clientX)); });
+  stageEl.addEventListener('pointerup', () => { dragging = false; });
+  stageEl.addEventListener('pointercancel', () => { dragging = false; });
+  handleEl.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 10 : 1;
+    const cur = parseFloat(handleEl.getAttribute('aria-valuenow')) || 0;
+    if(e.key === 'ArrowLeft'){ onMove(cur - step); e.preventDefault(); }
+    else if(e.key === 'ArrowRight'){ onMove(cur + step); e.preventDefault(); }
+    else if(e.key === 'Home'){ onMove(0); e.preventDefault(); }
+    else if(e.key === 'End'){ onMove(100); e.preventDefault(); }
+  });
+}
+attachSlider($('stage'), $('handle'), setPos);
+
+/* ---------------- saving ---------------- */
+$('newFolderBtn').addEventListener('click', () => promptFolder(f => { $('saveFolder').value = f.id; }));
+
+$('saveBtn').addEventListener('click', async () => {
+  if(!(src.before && src.after)) return;
+  const btn = $('saveBtn');
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = 'Uploading…';
+  banner($('compareErr'), '');
+
+  try{
+    const fd = new FormData();
+    fd.append('before', src.before.blob, src.before.name);
+    fd.append('after', src.after.blob, src.after.name);
+    fd.append('title', $('saveTitle').value.trim() || 'Untitled comparison');
+    fd.append('folder', $('saveFolder').value || '');
+    fd.append('w', String(src.after.w));
+    fd.append('h', String(src.after.h));
+    fd.append('bw', String(src.before.w));
+    fd.append('bh', String(src.before.h));
+    fd.append('fit', fitMode);
+    fd.append('pos', String(pos));
+
+    await api('/api/items', { method: 'POST', body: fd });
+    btn.textContent = 'Saved';
+    await refreshFolders();
+    setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 1400);
+  }catch(err){
+    banner($('compareErr'), err.message);
+    btn.textContent = label; btn.disabled = false;
+    handleAuthLoss(err);
+  }
+});
+
+/* ---------------- archive ---------------- */
+async function refreshArchive(){
+  try{
+    const [f, i] = await Promise.all([api('/api/folders'), api('/api/items')]);
+    folders = f.folders || [];
+    items = i.items || [];
+    fillFolderSelect();
+    banner($('archiveErr'), '');
+    renderArchive();
+  }catch(err){ banner($('archiveErr'), err.message); handleAuthLoss(err); }
+}
+
+function renderArchive(){
+  if(activeFolder !== 'all' && !folders.some(f => f.id === activeFolder)) activeFolder = 'all';
+
+  const counts = {};
+  items.forEach(i => { counts[i.folder_id] = (counts[i.folder_id] || 0) + 1; });
+
+  const list = $('folderList');
+  list.innerHTML = '';
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'folder'; allBtn.type = 'button';
+  allBtn.setAttribute('aria-current', String(activeFolder === 'all'));
+  allBtn.innerHTML = `<span class="fname">All comparisons</span><span class="count">${items.length}</span>`;
+  allBtn.addEventListener('click', () => { activeFolder = 'all'; renderArchive(); });
+  list.appendChild(allBtn);
+
+  folders.forEach(f => {
+    const b = document.createElement('button');
+    b.className = 'folder'; b.type = 'button';
+    b.setAttribute('aria-current', String(activeFolder === f.id));
+    b.innerHTML = `<span class="fname">${esc(f.name)}</span><span class="count">${counts[f.id] || 0}</span>`;
+    b.addEventListener('click', () => { activeFolder = f.id; renderArchive(); });
+    if(folders.length > 1){
+      const x = document.createElement('button');
+      x.className = 'x'; x.type = 'button'; x.title = 'Delete folder'; x.textContent = '×';
+      x.addEventListener('click', e => { e.stopPropagation(); confirmDeleteFolder(f); });
+      b.appendChild(x);
+    }
+    list.appendChild(b);
+  });
+
+  const shown = activeFolder === 'all' ? items : items.filter(i => i.folder_id === activeFolder);
+  $('archiveCount').textContent = `${items.length} saved · ${folders.length} folder${folders.length === 1 ? '' : 's'}`;
+  $('archiveEmpty').hidden = shown.length > 0;
+
+  const grid = $('itemGrid');
+  grid.innerHTML = '';
+  shown.forEach(it => {
+    const fname = (folders.find(f => f.id === it.folder_id) || {}).name || '—';
+    const card = document.createElement('article');
+    card.className = 'card';
+    card.innerHTML = `
+      <button class="shot" type="button" title="Open comparison">
+        <img src="/api/items/${encodeURIComponent(it.id)}/image/after" alt="" loading="lazy">
+      </button>
+      <div class="body">
+        <div class="title">${esc(it.title)}</div>
+        <div class="mono" style="color:var(--fg-dim)">${it.w || '?'}×${it.h || '?'} · ${fmtDate(it.created_at)}</div>
+        <div class="row">
+          <span class="mono" style="color:var(--fg-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fname)}</span>
+          <button class="btn quiet mono" data-act="move" type="button" style="margin-left:auto">move</button>
+          <button class="btn quiet mono danger" data-act="del" type="button">delete</button>
+        </div>
+      </div>`;
+    card.querySelector('.shot').addEventListener('click', () => openItem(it));
+    card.querySelector('[data-act="move"]').addEventListener('click', () => moveItem(it));
+    card.querySelector('[data-act="del"]').addEventListener('click', () => confirmDelete(it));
+    grid.appendChild(card);
+  });
+}
+
+/* ---------------- overlays ---------------- */
+function overlay(contentEl){
+  const back = document.createElement('div');
+  back.className = 'backdrop';
+  back.appendChild(contentEl);
+  const close = () => { back.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if(e.key === 'Escape') close(); };
+  back.addEventListener('pointerdown', e => { if(e.target === back) close(); });
+  document.addEventListener('keydown', onKey);
+  $('overlayRoot').appendChild(back);
+  return close;
+}
+function showAlert(text){
+  const box = document.createElement('div');
+  box.className = 'modal confirm';
+  box.innerHTML = `<p style="margin:0">${esc(text)}</p><div class="actions"><button class="btn primary" type="button">OK</button></div>`;
+  const close = overlay(box);
+  box.querySelector('button').addEventListener('click', close);
+}
+function promptFolder(cb){
+  const box = document.createElement('div');
+  box.className = 'modal confirm';
+  box.innerHTML = `<h3 style="font-size:1.05rem">New folder</h3>
+    <input class="input" id="pfName" placeholder="e.g. Retouch · October">
+    <div class="hint" id="pfHint"></div>
+    <div class="actions"><button class="btn" data-x type="button">Cancel</button><button class="btn primary" data-ok type="button">Create</button></div>`;
+  const close = overlay(box);
+  const input = box.querySelector('#pfName');
+  input.focus();
+  box.querySelector('[data-x]').addEventListener('click', close);
+  const create = async () => {
+    const name = input.value.trim();
+    if(!name) return;
+    try{
+      const f = await createFolder(name);
+      close(); cb(f);
+    }catch(err){ box.querySelector('#pfHint').textContent = err.message; }
+  };
+  box.querySelector('[data-ok]').addEventListener('click', create);
+  input.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); create(); } });
+}
+function confirmDelete(it){
+  const box = document.createElement('div');
+  box.className = 'modal confirm';
+  box.innerHTML = `<h3 style="font-size:1.05rem">Delete this comparison?</h3>
+    <p class="note" style="margin:0">“${esc(it.title)}” and both of its images will be removed from your archive.</p>
+    <div class="hint" id="cdHint"></div>
+    <div class="actions"><button class="btn" data-x type="button">Keep</button>
+    <button class="btn primary" data-ok type="button" style="background:var(--danger);border-color:var(--danger);color:#fff">Delete</button></div>`;
+  const close = overlay(box);
+  box.querySelector('[data-x]').addEventListener('click', close);
+  box.querySelector('[data-ok]').addEventListener('click', async () => {
+    try{
+      await api('/api/items/' + encodeURIComponent(it.id), { method: 'DELETE' });
+      close(); await refreshArchive();
+    }catch(err){ box.querySelector('#cdHint').textContent = err.message; }
+  });
+}
+function confirmDeleteFolder(f){
+  const box = document.createElement('div');
+  box.className = 'modal confirm';
+  box.innerHTML = `<h3 style="font-size:1.05rem">Delete “${esc(f.name)}”?</h3>
+    <p class="note" style="margin:0">Comparisons inside it move to your oldest folder. Nothing is deleted.</p>
+    <div class="hint" id="dfHint"></div>
+    <div class="actions"><button class="btn" data-x type="button">Keep</button>
+    <button class="btn primary" data-ok type="button" style="background:var(--danger);border-color:var(--danger);color:#fff">Delete folder</button></div>`;
+  const close = overlay(box);
+  box.querySelector('[data-x]').addEventListener('click', close);
+  box.querySelector('[data-ok]').addEventListener('click', async () => {
+    try{
+      await api('/api/folders/' + encodeURIComponent(f.id), { method: 'DELETE' });
+      close(); await refreshArchive();
+    }catch(err){ box.querySelector('#dfHint').textContent = err.message; }
+  });
+}
+function moveItem(it){
+  const box = document.createElement('div');
+  box.className = 'modal confirm';
+  box.innerHTML = `<h3 style="font-size:1.05rem">Move to folder</h3>
+    <select class="input" id="mvSel">${folders.map(f => `<option value="${esc(f.id)}" ${f.id === it.folder_id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>
+    <div class="hint" id="mvHint"></div>
+    <div class="actions"><button class="btn" data-x type="button">Cancel</button><button class="btn primary" data-ok type="button">Move</button></div>`;
+  const close = overlay(box);
+  box.querySelector('[data-x]').addEventListener('click', close);
+  box.querySelector('[data-ok]').addEventListener('click', async () => {
+    try{
+      await api('/api/items/' + encodeURIComponent(it.id), {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ folder_id: box.querySelector('#mvSel').value })
+      });
+      close(); await refreshArchive();
+    }catch(err){ box.querySelector('#mvHint').textContent = err.message; }
+  });
+}
+function openItem(it){
+  const bUrl = `/api/items/${encodeURIComponent(it.id)}/image/before`;
+  const aUrl = `/api/items/${encodeURIComponent(it.id)}/image/after`;
+  const mGeo = geometry(it.bw, it.bh, it.w, it.h);
+  const mFit = it.fit === 'contain' ? 'contain' : 'cover';
+  const box = document.createElement('div');
+  box.className = 'modal';
+  box.innerHTML = `
+    <div class="modal-head">
+      <strong style="font-family:var(--display)">${esc(it.title)}</strong>
+      <span class="mono" style="color:var(--fg-dim)">${it.w || '?'}×${it.h || '?'} · ${fmtDate(it.created_at)}</span>
+      <button class="btn quiet" data-x type="button" style="margin-left:auto">Close</button>
+    </div>
+    <div class="stage ${(it.fit === 'contain') ? 'fit-contain' : 'fit-cover'}" id="mStage" style="--pos:${it.pos || 0}%;aspect-ratio:${mGeo.ar.toFixed(4)}">
+      <img src="${aUrl}" alt="After">
+      <img src="${bUrl}" class="layer-before" alt="Before">
+      <span class="tag tag-b">before</span><span class="tag tag-a">after</span>
+      <div class="handle" id="mHandle" role="slider" tabindex="0" aria-label="Reveal position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(it.pos || 0)}"><div class="knob">◀▶</div></div>
+    </div>
+    <div class="stage-bar">
+      <span class="mono" id="mRead" style="color:var(--fg-dim)">reveal ${Math.round(it.pos || 0)}%</span>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" data-reuse type="button">Open in Compare</button>
+        <button class="btn" data-png type="button">Download this frame</button>
+      </div>
+    </div>`;
+  const close = overlay(box);
+  box.querySelector('[data-x]').addEventListener('click', close);
+
+  const st = box.querySelector('#mStage'), hd = box.querySelector('#mHandle');
+  let p = it.pos || 0;
+  const move = v => {
+    p = Math.max(0, Math.min(100, v));
+    st.style.setProperty('--pos', p.toFixed(2) + '%');
+    hd.setAttribute('aria-valuenow', Math.round(p));
+    box.querySelector('#mRead').textContent = `reveal ${Math.round(p)}%`;
+  };
+  attachSlider(st, hd, move);
+
+  box.querySelector('[data-reuse]').addEventListener('click', async () => {
+    const btn = box.querySelector('[data-reuse]');
+    btn.disabled = true; btn.textContent = 'Loading…';
+    try{
+      const [b, a] = await Promise.all([
+        fetch(bUrl, { credentials: 'same-origin' }).then(r => r.blob()),
+        fetch(aUrl, { credentials: 'same-origin' }).then(r => r.blob())
+      ]);
+      await setSource('before', b, it.before_name || 'before');
+      await setSource('after', a, it.after_name || 'after');
+      $('saveTitle').value = it.title;
+      close(); showTab('compare'); setFitMode(mFit); setPos(p);
+    }catch(err){
+      btn.disabled = false; btn.textContent = 'Open in Compare';
+      showAlert('Could not load those images.');
+    }
+  });
+
+  box.querySelector('[data-png]').addEventListener('click', () => exportFrame(it, p, bUrl, aUrl, mFit));
+}
+
+/* ---------------- composite export ---------------- */
+/* Places one image inside the frame exactly as CSS object-fit would, so the
+   exported PNG matches what the slider showed. */
+function drawFitted(ctx, img, W, H, mode){
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  if(!iw || !ih) return;
+  const scale = mode === 'contain'
+    ? Math.min(W / iw, H / ih)
+    : Math.max(W / iw, H / ih);
+  const dw = iw * scale, dh = ih * scale;
+  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+}
+
+async function exportFrame(it, p, bUrl, aUrl, mode){
+  try{
+    const load = async url => {
+      const blob = await fetch(url, { credentials: 'same-origin' }).then(r => r.blob());
+      const objUrl = URL.createObjectURL(blob);
+      const im = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i); i.onerror = rej; i.src = objUrl;
+      });
+      return { im, objUrl };
+    };
+    const [b, a] = await Promise.all([load(bUrl), load(aUrl)]);
+
+    // The after image defines the frame; both layers are fitted into it with
+    // the same rule the slider used, so the PNG matches the screen.
+    const W = a.im.naturalWidth, H = a.im.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const x = c.getContext('2d');
+
+    // "Show all" letterboxes, so give the bars a colour rather than leaving
+    // them transparent.
+    if(mode === 'contain'){ x.fillStyle = '#101216'; x.fillRect(0, 0, W, H); }
+
+    drawFitted(x, a.im, W, H, mode);
+    const cut = Math.round(W * p / 100);
+    if(cut > 0){
+      x.save(); x.beginPath(); x.rect(0, 0, cut, H); x.clip();
+      if(mode === 'contain'){ x.fillStyle = '#101216'; x.fillRect(0, 0, cut, H); }
+      drawFitted(x, b.im, W, H, mode);
+      x.restore();
+      x.fillStyle = '#fff'; x.fillRect(Math.max(0, cut - 2), 0, 3, H);
+    }
+    URL.revokeObjectURL(b.objUrl); URL.revokeObjectURL(a.objUrl);
+    c.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = (it.title || 'comparison').replace(/[^\w\-]+/g, '_') + '.png';
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }, 'image/png');
+  }catch(err){
+    showAlert('Could not build the PNG.');
+  }
+}
+
+/* ---------------- session loss ---------------- */
+function handleAuthLoss(err){
+  if(err && err.status === 401){
+    me = null; folders = []; items = [];
+    $('appView').hidden = true; $('authView').hidden = false;
+    setAuthMode('login');
+    authMsg('Your session expired. Sign in again.', true);
+  }
+}
+
+/* ---------------- boot ---------------- */
+(async function boot(){
+  try{
+    const out = await api('/api/auth/me');
+    if(out && out.user){ me = out.user; await enterApp(); return; }
+  }catch(e){}
+  $('authView').hidden = false;
+  setAuthMode('login');
+})();
+
+window.addEventListener('beforeunload', () => {
+  blobUrls.forEach(u => { try{ URL.revokeObjectURL(u); }catch(e){} });
+});
+
+if('serviceWorker' in navigator && location.protocol === 'https:'){
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>
