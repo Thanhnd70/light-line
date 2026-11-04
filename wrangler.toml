@@ -1,9 +1,12 @@
 name = "lightline"
-pages_build_output_dir = "public"
-compatibility_date = "2026-05-01"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Replace database_id with the id printed by:  npx wrangler d1 create lightline
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "lightline"
